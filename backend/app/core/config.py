@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     langfuse_secret_key: str | None = None
     langfuse_host: str | None = None
 
+    # Vision
+    vision_enabled: bool = True
+    vision_api_key: str | None = None
+    vision_base_url: str = "https://api.groq.com/openai/v1"
+    vision_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+    vision_max_images: int = 10
+    vision_min_image_kb: int = 20
+    vision_timeout_s: float = 30.0
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
@@ -73,6 +82,10 @@ class Settings(BaseSettings):
     @property
     def is_dev(self) -> bool:
         return not self.is_prod
+
+    @property
+    def vision_key(self) -> str | None:
+        return self.vision_api_key or self.llm_api_key
 
 
 @lru_cache

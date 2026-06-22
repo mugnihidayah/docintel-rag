@@ -37,3 +37,8 @@ class UnsupportedFormatError(AppError):
 class RateLimitedError(AppError):
     status_code = 429
     code = "rate_limited"
+
+
+class ExtractionError(AppError):
+    status_code = 422
+    code = "extraction_error"

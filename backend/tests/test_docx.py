@@ -63,7 +63,7 @@ def test_extract_docx_block_index_anchor() -> None:
     result = extract_docx("doc.docx", _make_docx())
     assert all(e.location.block_index is not None for e in result.elements)
     indices = [e.location.block_index for e in result.elements]
-    assert indices == sorted(indices)
+    assert indices == sorted(indices) # type: ignore
 
 
 def test_extract_docx_image_via_vision(monkeypatch: pytest.MonkeyPatch) -> None:

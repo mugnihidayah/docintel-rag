@@ -63,7 +63,7 @@ def extract_docx(filename: str, data: bytes) -> ExtractedDocument:
         if isinstance(block, Paragraph):
             text = block.text.strip()
             if text:
-                el_type = _para_type(block.style.name if block.style else "")
+                el_type = _para_type(block.style.name if block.style else "") # type: ignore
                 if el_type is ElementType.HEADING:
                     section = text
                 elements.append(

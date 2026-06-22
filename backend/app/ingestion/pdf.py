@@ -30,7 +30,7 @@ def extract_pdf(filename: str, data: bytes) -> ExtractedDocument:
         for page_index in range(doc.page_count):
             page = doc[page_index]
             page_no = page_index + 1
-            text = page.get_text().strip()
+            text = page.get_text().strip() # type: ignore
             if text:
                 elements.append(
                     Element(

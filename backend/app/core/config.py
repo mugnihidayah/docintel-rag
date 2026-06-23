@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     vision_min_image_kb: int = 20
     vision_timeout_s: float = 30.0
 
+    # Chunking
+    chunk_size: int = 512
+    chunk_overlap: int = 64
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]

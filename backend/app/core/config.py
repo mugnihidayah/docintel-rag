@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_model: str = "llama-3.3-70b-versatile"
     llm_base_url: str | None = None
+    llm_provider: str = "groq"
 
     # Embedding
     embedding_provider: str = "jina"

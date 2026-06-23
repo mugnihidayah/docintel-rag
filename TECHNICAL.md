@@ -29,10 +29,14 @@ _(structure-aware chunking — TODO Fase 2)_
 - Alasan & trade-off: _(TODO)_
 
 ## 5. Retrieval & Reranking
-Hybrid native pgvector (default) + Cohere rerank (default-on + fallback). _(TODO)_
+**Hybrid search** native pgvector: jalur **vektor** (HNSW, cosine) untuk kemiripan makna + jalur **full-text** (`simple` config) untuk kecocokan kata/istilah eksak — digabung jadi kandidat top-k. Vektor unggul untuk parafrase, full-text unggul untuk kode/istilah persis; gabungan menutup kelemahan masing-masing.
+
+Kandidat lalu di-**rerank** oleh **Cohere rerank-multilingual** (cross-encoder, baca pertanyaan+chunk bersama) → top-n paling relevan. **Default ON**, dengan **graceful fallback**: bila reranker gagal (rate limit/timeout/provider down), query tetap jalan memakai urutan retriever (di-log, tanpa menjatuhkan permintaan). Semua parameter (`retrieve_top_k`, `rerank_top_n`, model) lewat env.
 
 ## 6. Grounding & Sitasi
-_(prompt grounding + sitasi dari source_nodes — TODO Fase 3)_
+**Grounding.** Prompt menyuruh LLM menjawab **hanya** dari konteks yang diberikan; jika tak ada, balas `"Tidak ditemukan dalam dokumen."` (refusal eksplisit). Konteks ditandai sebagai **data, bukan instruksi** (mitigasi prompt injection dari isi dokumen). LLM dijalankan `temperature=0` agar deterministik.
+
+**Sitasi.** Dirakit langsung dari **metadata tiap node** hasil retrieval (`document_id`, `filename`, lokasi: halaman/slide/sheet/section/baris) — bukan diminta ke LLM, jadi tak bisa dikarang. Tiap sitasi membawa `snippet` (cuplikan sumber), `score`, dan `score_type` (`hybrid` bila reranker dilewati via fallback, `rerank` bila aktif). Orchestrator query (`rag/query.py`) merangkai: retrieve → rerank (fallback) → jawab grounded → kumpulkan sitasi → `QueryResult{answer, citations, retrieved_chunks, model, latency_ms}`.
 
 ## 7. Model Data
 4 tabel: `documents`, node (PGVectorStore), `conversations`, `messages`. _(TODO)_

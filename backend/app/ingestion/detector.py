@@ -5,7 +5,7 @@ from typing import Protocol
 
 import magic
 
-from app.core.errors import UnsupportedFormatError
+from app.core.errors import UnsupportedFormatError, ValidationError
 from app.ingestion.models import ExtractedDocument
 
 _EXTENSIONS: dict[str, set[str]] = {
@@ -39,6 +39,8 @@ _FAMILY: dict[str, set[str]] = {
 
 def detect_format(filename: str, data: bytes) -> str:
     """detect a supported format from extension + magic bytes, or raise"""
+    if not data:
+        raise ValidationError("Empty file")
     ext = Path(filename).suffix.lower()
     fmt = next((f for f, exts in _EXTENSIONS.items() if ext in exts), None)
     if fmt is None:

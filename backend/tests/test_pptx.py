@@ -19,11 +19,11 @@ _PNG_1X1 = base64.b64decode(
 def _make_pptx() -> bytes:
     prs = Presentation()
     s1 = prs.slides.add_slide(prs.slide_layouts[1])
-    s1.shapes.title.text = "Welcome" # type: ignore
-    s1.placeholders[1].text = "First slide body text" # type: ignore
-    s1.notes_slide.notes_text_frame.text = "Remember to smile" # type: ignore
+    s1.shapes.title.text = "Welcome"  # type: ignore
+    s1.placeholders[1].text = "First slide body text"  # type: ignore
+    s1.notes_slide.notes_text_frame.text = "Remember to smile"  # type: ignore
     s2 = prs.slides.add_slide(prs.slide_layouts[5])
-    s2.shapes.title.text = "Second Slide" # type: ignore
+    s2.shapes.title.text = "Second Slide"  # type: ignore
     buf = io.BytesIO()
     prs.save(buf)
     return buf.getvalue()
@@ -32,7 +32,7 @@ def _make_pptx() -> bytes:
 def _make_pptx_with_picture() -> bytes:
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[5])
-    slide.shapes.title.text = "Charts" # type: ignore
+    slide.shapes.title.text = "Charts"  # type: ignore
     slide.shapes.add_picture(io.BytesIO(_PNG_1X1), Inches(1), Inches(1), Inches(2), Inches(2))
     buf = io.BytesIO()
     prs.save(buf)

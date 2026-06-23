@@ -60,7 +60,7 @@ def extract_pptx(filename: str, data: bytes) -> ExtractedDocument:
                 )
             )
         if slide.has_notes_slide:
-            notes = slide.notes_slide.notes_text_frame.text.strip() # type: ignore
+            notes = slide.notes_slide.notes_text_frame.text.strip()
             if notes:
                 elements.append(
                     Element(

@@ -18,6 +18,8 @@ Deteksi format gabungan **ekstensi + magic bytes** (menolak file yang ekstensiny
 
 **Konten gambar (vision LLM).** Gambar tertanam (PDF/DOCX/PPTX) dan **PDF hasil scan** (halaman tanpa teks → di-render jadi gambar) dikirim ke **vision LLM** (Llama 4 Scout via Groq) saat ingestion → teks/deskripsi jadi `Element` tipe `image` dengan lokasi sumbernya. Dipilih hosted vision LLM (bukan OCR lokal) agar sejalan prinsip no-local-compute & lebih kaya (paham diagram). Pengaman: skip gambar kecil, batas jumlah per dokumen, timeout + **fallback** (gagal → skip, ekstraksi tetap jalan). Batasan: gambar di sel tabel/header-footer & dokumen scan sangat panjang (dibatasi budget) = future work.
 
+**Ketahanan.** Deteksi format menolak ekstensi yang menipu (magic bytes) & file kosong dengan pesan jelas; file korup → `ExtractionError` (status `failed`, batch lain tetap jalan); teks di-decode **UTF-8** dengan fallback (teks Indonesia utuh, tak pernah crash karena byte aneh).
+
 ## 3. Chunking
 _(structure-aware chunking — TODO Fase 2)_
 

@@ -21,7 +21,7 @@ with traceable citations. Runs as a Hugging Face **Docker** Space.
 | `EMBEDDING_API_KEY` | Jina |
 | `COHERE_API_KEY` | reranker (or set `RERANK_ENABLED=false`) |
 | `ALLOWED_ORIGINS` | your frontend origin, e.g. `https://your-app.vercel.app` |
-| `API_KEY` | optional — protects upload/delete |
+| `API_KEY` | optional, protects upload/delete |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_BASE_URL` | optional tracing |
 
 The container applies Alembic migrations on start, then serves on port 8000.

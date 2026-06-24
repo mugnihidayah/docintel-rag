@@ -37,6 +37,11 @@ class QueryResult:
     latency_ms: int
 
 
+def _is_not_found(answer: str) -> bool:
+    """True when the model returned the grounded 'not found' sentinel (tolerant of case/period)."""
+    return answer.strip().rstrip(".").casefold() == _NOT_FOUND.rstrip(".").casefold()
+
+
 def _build_citations(nodes: list[NodeWithScore], score_type: str) -> list[Citation]:
     citations: list[Citation] = []
     for nws in nodes:
@@ -79,6 +84,8 @@ def _run_query(question: str, settings: Settings | None = None) -> QueryResult:
     answer = str(make_llm(settings).complete(prompt)).strip()
 
     elapsed = int((time.perf_counter() - started) * 1000)
+    if _is_not_found(answer):
+        return QueryResult(_NOT_FOUND, [], len(nodes), model, elapsed)
     return QueryResult(answer, _build_citations(nodes, score_type), len(nodes), model, elapsed)
 
 

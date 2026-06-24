@@ -4,7 +4,7 @@
 
 ### Keputusan arsitektur dan implementasi DocIntel, lengkap dengan alasan di baliknya
 
-[Arsitektur](#1-arsitektur) · [Chunking](#3-chunking) · [Retrieval](#5-retrieval-dan-reranking) · [Model Data](#7-model-data) · [Keamanan](#10-keamanan)
+[Arsitektur](#1-arsitektur) · [Strategi Diagram](#3-strategi-diagram-dan-gambar) · [Chunking](#4-chunking) · [Embedding & LLM](#5-embedding-dan-llm) · [Retrieval](#6-retrieval-dan-reranking) · [Trade-off](#13-trade-off-dan-pengembangan-lanjutan)
 
 </div>
 
@@ -14,16 +14,17 @@
 
 1. [Arsitektur](#1-arsitektur)
 2. [Parsing dan ekstraksi multi-format](#2-parsing-dan-ekstraksi-multi-format)
-3. [Chunking](#3-chunking)
-4. [Embedding dan LLM](#4-embedding-dan-llm)
-5. [Retrieval dan reranking](#5-retrieval-dan-reranking)
-6. [Grounding dan sitasi](#6-grounding-dan-sitasi)
-7. [Model data](#7-model-data)
-8. [Evaluasi](#8-evaluasi)
-9. [Observability](#9-observability)
-10. [Keamanan](#10-keamanan)
-11. [Deployment dan CI](#11-deployment-dan-ci)
-12. [Trade-off dan pengembangan lanjutan](#12-trade-off-dan-pengembangan-lanjutan)
+3. [Strategi diagram dan gambar](#3-strategi-diagram-dan-gambar)
+4. [Chunking](#4-chunking)
+5. [Embedding dan LLM](#5-embedding-dan-llm)
+6. [Retrieval dan reranking](#6-retrieval-dan-reranking)
+7. [Grounding dan sitasi](#7-grounding-dan-sitasi)
+8. [Model data](#8-model-data)
+9. [Evaluasi](#9-evaluasi)
+10. [Observability](#10-observability)
+11. [Keamanan](#11-keamanan)
+12. [Deployment dan CI](#12-deployment-dan-ci)
+13. [Trade-off dan pengembangan lanjutan](#13-trade-off-dan-pengembangan-lanjutan)
 
 ---
 
@@ -66,7 +67,39 @@ Soal ketahanan, file yang korup tidak menggagalkan batch secara keseluruhan, dok
 
 ---
 
-## 3. Chunking
+## 3. Strategi diagram dan gambar
+
+Banyak informasi penting di dokumen internal justru tidak berbentuk teks: diagram alur, bagan organisasi, grafik tren, tabel yang difoto, atau PDF hasil scan yang sama sekali tak punya lapisan teks. Kalau konten visual ini diabaikan, retrieval akan buta terhadap sebagian isi dokumen. Strateginya: **ubah visual jadi teks deskriptif saat ingestion, sekali saja, lalu perlakukan sama seperti teks biasa** di seluruh pipeline.
+
+**Dua pemicu.** (1) Gambar yang tertanam di dalam dokumen (PDF, DOCX, PPTX) diekstrak per halaman/slide. (2) Halaman PDF yang tidak punya lapisan teks (indikasi hasil scan) dirender utuh jadi gambar. Keduanya lalu dikirim ke vision LLM (Llama 4 Scout via Groq).
+
+**Kenapa vision LLM, bukan OCR lokal.** OCR klasik hanya mengubah piksel huruf jadi karakter, diagram alur tetap jadi kumpulan kata acak tanpa makna hubungan antar-node. Vision LLM bisa *menjelaskan* diagram ("alur dimulai dari penerimaan bahan baku → inspeksi visual → uji lab → ..."), membaca grafik, dan menuliskan ulang tabel hasil scan. Hasilnya jadi teks yang kaya dan bisa dicari secara semantik. Pilihan ini juga sejalan dengan prinsip menghindari komputasi berat di lokal: tidak perlu model OCR/GPU sendiri.
+
+**Hasilnya menyatu dengan pipeline.** Deskripsi dari vision disimpan sebagai `Element` bertipe `image`, lengkap dengan lokasinya (halaman/slide). Karena bentuknya sama dengan elemen teks, ia ikut di-chunk, di-embed, diindeks, dan bisa muncul sebagai sitasi, pengguna tetap diarahkan ke halaman tempat diagram aslinya berada.
+
+**Pengaman supaya tidak mahal dan tidak rapuh.** Gambar yang terlalu kecil (ikon, garis pemisah) dilewati; ada batas jumlah gambar yang diproses per dokumen; gambar yang melebihi batas piksel model (mis. halaman hasil scan beresolusi tinggi, seperti pada UU ASN yang satu halamannya ~39,6 juta piksel) di-downscale dulu agar tetap diterima alih-alih ditolak; tiap pemanggilan vision punya timeout dan fallback, sehingga satu gambar yang gagal tidak menghentikan ekstraksi dokumennya. Konversi dilakukan **sekali di waktu ingestion**, bukan tiap query, jadi biaya vision tidak menempel ke latensi tanya-jawab.
+
+```mermaid
+flowchart TD
+    SRC[Dokumen] --> A{Ada gambar tertanam?}
+    A -->|ya| IMG[Ekstrak gambar per halaman/slide]
+    A -->|tidak| B{Halaman PDF tanpa lapisan teks?}
+    B -->|ya, indikasi scan| RND[Render halaman jadi gambar]
+    B -->|tidak| TXT[Pakai teks biasa]
+    IMG --> F{Lolos filter ukuran & kuota?}
+    RND --> F
+    F -->|tidak| SKIP[Lewati]
+    F -->|ya| V["Vision LLM (timeout + fallback)"]
+    V --> EL["Element tipe image + lokasi"]
+    EL --> P[Masuk pipeline: chunk → embed → index → sitasi]
+    TXT --> P
+```
+
+> Catatan trade-off: deskripsi visual bergantung pada kualitas model vision, dan gambar di dalam sel tabel belum ditangani khusus, keduanya tercatat di [bagian 13](#13-trade-off-dan-pengembangan-lanjutan).
+
+---
+
+## 4. Chunking
 
 Cara awal yang membuat satu chunk per elemen ternyata bikin masalah: heading kepisah dari isinya, jadi pertanyaan yang butuh daftar misalnya daftar kriteria penilaian gagal menemukan konteks yang pas karena tiap poin berdiri sendiri dengan sinyal yang lemah.
 
@@ -86,13 +119,13 @@ flowchart TD
 
 ---
 
-## 4. Embedding dan LLM
+## 5. Embedding dan LLM
 
 Embedding memakai Jina (v5, 1024 dimensi, multilingual) dan LLM memakai `llama-3.3-70b` lewat Groq. Keduanya model hosted. Pertimbangannya praktis: target deploy-nya free tier tanpa GPU, dan model hosted memberi kualitas multilingual yang bagus untuk dokumen berbahasa Indonesia tanpa perlu mengurus infrastruktur model sendiri. Gantinya, ada ketergantungan pada API key dan rate limit, yang ditekan dengan `temperature=0` (biar jawabannya konsisten) dan fallback di sisi reranker. Dimensi 1024 dipilih karena cukup menyeimbangkan kualitas dengan ukuran index HNSW. Seperti disebut di atas, semuanya bisa diganti lewat factory dan env, jadi pindah ke Gemini, OpenAI, atau model lokal cukup menambah satu cabang.
 
 ---
 
-## 5. Retrieval dan reranking
+## 6. Retrieval dan reranking
 
 Pencariannya hybrid. Jalur vektor (HNSW, cosine) bagus menangkap parafrase dan kemiripan makna, tapi lemah kalau yang dicari istilah atau kode yang harus persis. Jalur full-text justru kebalikannya. Menggabungkan keduanya menutup kelemahan masing-masing, dan kebetulan PGVectorStore sudah mendukung ini langsung di dalam Postgres, jadi tidak perlu memuat semua node ke memori.
 
@@ -115,11 +148,13 @@ flowchart LR
 
 ---
 
-## 6. Grounding dan sitasi
+## 7. Grounding dan sitasi
 
 Prompt-nya menyuruh model menjawab hanya dari konteks yang diberikan, dan kalau jawabannya tidak ada di situ, model harus bilang "Tidak ditemukan dalam dokumen." daripada mengarang. Konteksnya juga ditandai sebagai data, bukan instruksi, untuk menekan kemungkinan prompt injection dari isi dokumen, dan model dijalankan pada `temperature=0`.
 
 Sitasinya tidak diminta ke model. Kalau model yang menyusun rujukan, dia bisa saja salah sebut halaman. Jadi sitasi disusun langsung dari metadata tiap node hasil pencarian `document_id`, nama file, lokasi, dan cuplikan teksnya di luar LLM. Tiap sitasi membawa skor dan penanda dari mana skornya berasal (`rerank` kalau reranker aktif, `hybrid` kalau sedang fallback). Pengaturannya ada di `rag/query.py`: cari, rerank dengan fallback, susun jawaban, lalu kumpulkan sitasi jadi satu `QueryResult`.
+
+Satu catatan penting: pencarian hybrid selalu mengembalikan kandidat top-k walau pertanyaannya di luar korpus, jadi chunk yang muncul belum tentu relevan. Karena itu, ketika jawaban grounded berupa "Tidak ditemukan dalam dokumen.", sitasinya sengaja dikosongkan, supaya jawaban "tidak tahu" tidak ikut membawa sumber yang justru menyesatkan. `retrieved_chunks` tetap dilaporkan apa adanya untuk transparansi.
 
 ```python
 QueryResult(
@@ -133,7 +168,7 @@ QueryResult(
 
 ---
 
-## 7. Model data
+## 8. Model data
 
 Ada dua tabel. Tabel `documents` (diurus Alembic) menyimpan status tiap file: nama, `file_hash` untuk dedup, status (`pending` → `indexing` → `indexed`/`failed`), jumlah chunk, dan path file. Node beserta vektornya disimpan di tabel `data_docintel` yang diurus PGVectorStore, lengkap dengan kolom `embedding` (`vector(1024)`, HNSW cosine), metadata, dan tsvector untuk full-text.
 
@@ -141,19 +176,19 @@ Ada dua catatan implementasi yang penting. Pertama, PGVectorStore memakai kunci 
 
 ---
 
-## 8. Evaluasi
+## 9. Evaluasi
 
 Evaluasi otomatis belum dijalankan di submission ini, tapi rancangannya sudah jelas dan sengaja dipisah dari runtime supaya tidak menambah latensi atau biaya di tiap request. Rencananya dua lapis. Lapis retrieval murni deterministik tanpa LLM: hit-rate@k dan MRR terhadap satu set kecil pertanyaan dengan sumber yang sudah ditandai, untuk mengukur apakah chunk yang benar masuk top-k. Lapis generation memakai RAGAS (faithfulness, answer relevancy, context precision/recall) dengan model penilai yang berbeda dari model penjawab, biar tidak menilai dirinya sendiri.
 
 ---
 
-## 9. Observability
+## 10. Observability
 
 Tiap query bisa dilacak ke Langfuse, kalau key-nya tidak diisi, fungsinya jadi no-op tanpa beban sama sekali. Saya pakai auto-instrumentation dari OpenInference, jadi pemanggilan retrieval dan LLM otomatis ketangkap dan tersusun rapi di bawah satu span query, lengkap dengan input, output, dan metadata seperti latensi dan jumlah chunk. Cara auto-instrument ini saya pilih ketimbang membuat span manual satu per satu karena jejaknya lebih lengkap. Klien Langfuse dibuat secara lazy dan dibungkus penanganan error, jadi kalau setup tracing-nya bermasalah, aplikasinya tetap jalan.
 
 ---
 
-## 10. Keamanan
+## 11. Keamanan
 
 Endpoint yang mengubah data (upload dan hapus) bisa dilindungi API key lewat header, defaultnya mati saat development biar nyaman, dan otomatis aktif begitu key-nya diisi di deployment. Endpoint tanya-jawab dibiarkan terbuka. Ada juga rate limit sederhana per-IP yang cukup untuk satu instance, untuk multi-instance idealnya pindah ke Redis. Upload dijaga dari beberapa sisi: batas ukuran, nama file disanitasi supaya tidak bisa dipakai path traversal, dan deteksi format menolak ekstensi yang menipu.
 
@@ -169,7 +204,7 @@ Penanganan error-nya terpusat. Domain error saya (`AppError` dan turunannya) oto
 
 ---
 
-## 11. Deployment dan CI
+## 12. Deployment dan CI
 
 Secara lokal, `docker compose up --build` menjalankan database pgvector, API (yang otomatis menjalankan migrasi Alembic saat start), dan frontend yang sudah dibangun jadi statis lalu dilayani nginx yang sekalian mem-proxy API. CI di GitHub Actions menjalankan dua job tiap push: backend (`make check` lint, type-check, dan 67 test, dengan service Postgres+pgvector untuk yang integrasi) dan frontend (build).
 
@@ -177,7 +212,7 @@ Versi live-nya dipecah tiga: backend di Hugging Face Spaces (Docker), database d
 
 ---
 
-## 12. Trade-off dan pengembangan lanjutan
+## 13. Trade-off dan pengembangan lanjutan
 
 Dedup di level file sudah ada lewat hash, tapi `index_document` sendiri masih append-only, idealnya dia upsert berdasarkan id dokumen biar re-index aman dari jalur mana pun. Chunking yang sadar struktur sudah banyak membantu, tapi section yang sangat panjang dan terpaksa dipecah masih kehilangan konteks heading di potongan lanjutannya, bisa diperbaiki dengan menempelkan heading di tiap sub-chunk atau lewat small-to-big retrieval. Selebihnya: versioning dokumen, cache embedding per chunk, penanganan gambar di dalam sel tabel, dan memisahkan task embedding untuk query dan dokumen.
 

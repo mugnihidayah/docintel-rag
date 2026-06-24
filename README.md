@@ -12,7 +12,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Container-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-[Demo Live](#demo-live) · [Arsitektur](#arsitektur) · [Model Data](#model-data) · [Menjalankan](#menjalankan-secara-lokal) · [Tech Stack](#tech-stack) · [API](#api)
+[Demo Live](#demo-live) · [Arsitektur](#arsitektur) · [Menjalankan](#menjalankan-secara-lokal) · [API](#api) · [Contoh Q&A](#contoh-tanya-jawab) · [Tech Stack](#tech-stack)
 
 </div>
 
@@ -28,6 +28,7 @@
 - [Model Data](#model-data)
 - [Menjalankan Secara Lokal](#menjalankan-secara-lokal)
 - [API](#api)
+- [Contoh Tanya-Jawab](#contoh-tanya-jawab)
 - [Pengujian dan CI](#pengujian-dan-ci)
 - [Struktur Proyek](#struktur-proyek)
 - [Tech Stack](#tech-stack)
@@ -156,7 +157,9 @@ erDiagram
 
 ---
 
-## Running Locally
+## Menjalankan Secara Lokal
+
+Bagian ini mencakup **setup** (prasyarat + API key) dan **cara run** (Docker sekaligus, atau manual untuk development).
 
 ### Requirements
 
@@ -208,6 +211,77 @@ npm run dev                            # http://localhost:5173
 | `GET` | `/documents/{id}/file` | File mentah untuk ditampilkan di UI |
 | `POST` | `/query` | Pertanyaan, dibalas jawaban beserta sitasi |
 | `GET` | `/health` | Liveness check |
+
+---
+
+## Contoh Tanya-Jawab
+
+Setelah dokumen diunggah dan terindeks, bertanya cukup lewat satu endpoint `POST /query` dengan body `{ "question": "..." }`. Jawabannya selalu **grounded** (hanya dari isi dokumen) dan dibalas bersama daftar **sitasi** yang menunjuk ke file, lokasi (halaman/slide/sheet/baris), dan cuplikan teks sumbernya.
+
+### Format request & response
+
+```bash
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Apa definisi guru menurut UU Guru dan Dosen?"}'
+```
+
+```jsonc
+{
+  "answer": "Guru adalah pendidik profesional dengan tugas utama mendidik, mengajar, membimbing, mengarahkan, melatih, menilai, dan mengevaluasi peserta didik pada pendidikan anak usia dini jalur pendidikan formal, pendidikan dasar, dan pendidikan menengah.",
+  "citations": [
+    {
+      "document_id": "a1b2c3d4",
+      "filename": "UU-14-2005-Guru-dan-Dosen.pdf",
+      "location": { "page": 2 },
+      "snippet": "Guru adalah pendidik profesional dengan tugas utama mendidik, mengajar, membimbing...",
+      "score": 0.95,
+      "score_type": "rerank"
+    }
+  ],
+  "retrieved_chunks": 8,
+  "model": "llama-3.3-70b-versatile",
+  "latency_ms": 3120
+}
+```
+
+> `score_type` bernilai `rerank` saat reranker Cohere aktif, atau `hybrid` saat sistem sedang memakai urutan dari pencarian (fallback). Lokasi sitasi menyesuaikan format sumber: `page` (PDF), `slide` (PPTX), `section`/`block_index` (DOCX), `sheet`/`row_start`/`row_end` (XLSX), serta `row_start`/`row_end` (CSV/TXT).
+
+### Contoh skenario
+
+Korpus uji berisi dokumen publik Indonesia lintas-format: undang-undang (PDF), Kerangka Acuan Kerja / KAK (DOCX), paparan kebijakan Kemenkeu (PPTX), data PAUD & SK Lurah (XLSX), serta data wilayah administratif (CSV). Pertanyaan sengaja mencakup lima pola: retrieval sederhana, parameter numerik, data spreadsheet, lintas-dokumen, dan kasus "tidak ditemukan".
+
+| # | Pertanyaan | Pola | Jawaban (ringkas) | Sitasi |
+|---|---|---|---|---|
+| 1 | "Apa definisi guru menurut UU Guru dan Dosen?" | Retrieval sederhana (PDF) | "Pendidik profesional dengan tugas utama mendidik…" | `UU-14-2005-Guru-dan-Dosen.pdf` → `page` |
+| 2 | "Pegawai ASN terdiri dari apa saja?" | Retrieval sederhana (PDF) | PNS dan PPPK | `UU-20-2023-ASN.pdf` → `page` |
+| 3 | "Berapa jumlah peserta Forum Satu Data Indonesia Kabupaten Rembang?" | Parameter numerik (DOCX) | 45 peserta | `KAK-Satu-Data-Rembang.docx` → `section` |
+| 4 | "Berapa besaran Tunjangan Profesi Guru PNSD?" | Parameter numerik (PPTX) | 1 kali gaji pokok | `Paparan-DJPK-DAK-Nonfisik-Pendidikan.pptx` → `slide` |
+| 5 | "Apa nama PAUD nomor 1 di Kelurahan Makasar?" | Data spreadsheet (XLSX) | PAUD Kuntum Melati | `Data-PAUD-Jakarta-Timur.xlsx` → `sheet` + `row_start/row_end` |
+| 6 | "Perpres mana untuk Satu Data dan mana untuk penyesuaian TKDD 2020?" | Lintas-dokumen | Perpres 39/2019 & Perpres 54/2020 | `KAK-Satu-Data-Rembang.docx` + `Paparan-DJPK-Dampak-Covid-Ekonomi.pptx` |
+| 7 | "Apakah ada SOP penggunaan AI generatif di tempat kerja?" | Di luar korpus | "Tidak ditemukan dalam dokumen." | (tanpa sitasi) |
+
+### Perilaku saat informasi tidak ada
+
+Kalau jawabannya memang tidak ada di dokumen, model tidak mengarang, ia menjawab persis "Tidak ditemukan dalam dokumen.". Pencarian tetap mengembalikan kandidat chunk terdekat (jadi `retrieved_chunks` bisa > 0), tapi karena tidak ada yang mendukung jawaban, **sitasinya sengaja dikosongkan** supaya jawaban "tidak ditemukan" tidak ikut membawa sumber yang menyesatkan:
+
+```jsonc
+{
+  "answer": "Tidak ditemukan dalam dokumen.",
+  "citations": [],
+  "retrieved_chunks": 6,
+  "model": "llama-3.3-70b-versatile",
+  "latency_ms": 410
+}
+```
+
+> Daftar pertanyaan uji lengkap (10 pertanyaan beserta sumber yang diharapkan) ada di [backend/sample_docs/sample_questions.md](backend/sample_docs/sample_questions.md). Untuk mengindeks seluruh korpus uji sekaligus, taruh dokumen di `backend/sample_docs/` lalu jalankan dari `backend/`:
+>
+> ```bash
+> uv run python -m scripts.seed_sample_docs      # indeks semua file di sample_docs/
+> ```
+>
+> Atau uji satu file ad-hoc: `uv run python -m scripts.ask path/ke/file.pdf "Pertanyaan?"`.
 
 ---
 

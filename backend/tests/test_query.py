@@ -51,6 +51,24 @@ def test_answer_query_grounded(monkeypatch) -> None:
     assert result.model == "groq:m"
 
 
+def test_answer_query_not_found_drops_citations(monkeypatch) -> None:
+    # retrieval returns weakly-related chunks, but the grounded answer is "not found"
+    nodes = [_node("Topik tak relevan.", document_id="d9", filename="lain.pdf", page=1)]
+    retriever = SimpleNamespace(retrieve=lambda _q: nodes)
+    llm = SimpleNamespace(complete=lambda _p: _Resp("Tidak ditemukan dalam dokumen."))
+
+    monkeypatch.setattr(q, "make_retriever", lambda s=None: retriever)
+    monkeypatch.setattr(q, "make_reranker", lambda s=None: None)
+    monkeypatch.setattr(q, "make_llm", lambda s=None: llm)
+    monkeypatch.setattr(q, "get_settings", _fake_settings)
+
+    result = q.answer_query("Apakah ada SOP penggunaan AI generatif?")
+
+    assert result.answer == "Tidak ditemukan dalam dokumen."
+    assert result.citations == []  # no citations on a not-found answer
+    assert result.retrieved_chunks == 1  # retrieval still happened (transparency)
+
+
 def test_answer_query_rerank_fallback(monkeypatch) -> None:
     nodes = [_node("Audit lini X bulanan.", document_id="d1", filename="sop.pdf", page=2)]
 

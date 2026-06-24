@@ -1,10 +1,12 @@
 """Vision client: extract text/description from an image via a multimodal LLM"""
 
 import base64
+import io
 from collections.abc import Sequence
 from typing import Any
 
 from openai import OpenAI
+from PIL import Image
 
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
@@ -28,10 +30,36 @@ def describe_image(image_bytes: bytes, mime: str) -> str | None:
     if len(image_bytes) < settings.vision_min_image_kb * 1024:
         return None
     try:
+        image_bytes, mime = _fit_pixels(image_bytes, mime, settings.vision_max_pixels)
         return _call_vision(image_bytes, mime, settings)
     except Exception as exc:
         logger.warning("Vision call failed, skipping image: %s", exc)
         return None
+
+
+def _fit_pixels(image_bytes: bytes, mime: str, max_pixels: int) -> tuple[bytes, str]:
+    """Downscale an image to the model's pixel budget (e.g. scanned full-page PDFs).
+
+    Returns (bytes, mime). No-op when the image is already within budget or not
+    decodable — in the latter case the original bytes are sent and the API call's
+    own error handling applies.
+    """
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as im:
+            width, height = im.size
+            if width * height <= max_pixels:
+                return image_bytes, mime
+            scale = (max_pixels / (width * height)) ** 0.5
+            resized = im.resize((max(1, int(width * scale)), max(1, int(height * scale))))
+            if resized.mode not in ("RGB", "L"):
+                resized = resized.convert("RGB")
+            buf = io.BytesIO()
+            resized.save(buf, format="JPEG", quality=85)
+            logger.debug("Downscaled image %dx%d to fit %d px budget", width, height, max_pixels)
+            return buf.getvalue(), "image/jpeg"
+    except Exception as exc:
+        logger.debug("Image downscale skipped (%s); sending original", exc)
+        return image_bytes, mime
 
 
 def _call_vision(image_bytes: bytes, mime: str, settings: Settings) -> str:

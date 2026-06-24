@@ -49,7 +49,7 @@ class Settings(BaseSettings):
 
     # upload / storage
     upload_dir: str = "data/uploads"
-    max_upload_mb: int = 25
+    max_upload_mb: int = 50
     max_batch_files: int = 20
 
     # eval
@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     vision_max_images: int = 10
     vision_min_image_kb: int = 20
     vision_timeout_s: float = 30.0
+    # Llama 4 Scout caps images at 33,177,600 px; downscale above this budget (margin left)
+    vision_max_pixels: int = 33_000_000
 
     # Chunking
     chunk_size: int = 512

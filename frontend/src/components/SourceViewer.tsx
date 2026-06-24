@@ -1,7 +1,13 @@
-import { AlertCircle, FileText, Loader2, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { getDocumentChunks } from '../lib/api'
-import type { Citation, DocumentChunk } from '../lib/types'
+import { FileText, Loader2, X } from 'lucide-react'
+import { lazy, Suspense, useEffect } from 'react'
+import type { Citation } from '../lib/types'
+import { ViewerErrorBoundary } from './ViewerErrorBoundary'
+import { TextView } from './viewers/TextView'
+
+// Heavy viewers (pdfjs / mammoth / xlsx) are code-split and loaded on demand.
+const PdfView = lazy(() => import('./viewers/PdfView').then((m) => ({ default: m.PdfView })))
+const DocxView = lazy(() => import('./viewers/DocxView').then((m) => ({ default: m.DocxView })))
+const SheetView = lazy(() => import('./viewers/SheetView').then((m) => ({ default: m.SheetView })))
 
 function formatLocation(loc: Record<string, string | number>): string {
   if ('page' in loc) return `hal. ${loc.page}`
@@ -16,50 +22,27 @@ function formatLocation(loc: Record<string, string | number>): string {
   return ''
 }
 
-// A chunk is the cited one when every key of the citation location matches.
-function isCited(
-  target: Record<string, string | number>,
-  chunk: Record<string, string | number>,
-): boolean {
-  const keys = Object.keys(target)
-  if (keys.length === 0) return false
-  return keys.every((k) => String(target[k]) === String(chunk[k]))
+// Pick a renderer based on the file extension; fall back to the text view.
+function ViewerBody({ citation }: { citation: Citation }) {
+  if (!citation.document_id) {
+    return <p className="p-6 text-sm text-muted">Dokumen sumber tidak tersedia.</p>
+  }
+  const ext = (citation.filename ?? '').split('.').pop()?.toLowerCase()
+  switch (ext) {
+    case 'pdf':
+      return <PdfView citation={citation} />
+    case 'docx':
+      return <DocxView citation={citation} />
+    case 'xlsx':
+    case 'xls':
+    case 'csv':
+      return <SheetView citation={citation} />
+    default:
+      return <TextView citation={citation} />
+  }
 }
 
 export function SourceViewer({ citation, onClose }: { citation: Citation; onClose: () => void }) {
-  const [chunks, setChunks] = useState<DocumentChunk[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const targetRef = useRef<HTMLParagraphElement>(null)
-
-  useEffect(() => {
-    let active = true
-    setChunks(null)
-    setError(null)
-    if (!citation.document_id) {
-      setError('Dokumen sumber tidak tersedia')
-      return
-    }
-    getDocumentChunks(citation.document_id)
-      .then((d) => {
-        if (active) setChunks(d.chunks)
-      })
-      .catch((e: Error) => {
-        if (active) setError(e.message)
-      })
-    return () => {
-      active = false
-    }
-  }, [citation])
-
-  useEffect(() => {
-    if (!chunks) return
-    const t = setTimeout(
-      () => targetRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
-      60,
-    )
-    return () => clearTimeout(t)
-  }, [chunks])
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -74,7 +57,7 @@ export function SourceViewer({ citation, onClose }: { citation: Citation; onClos
       onClick={onClose}
     >
       <div
-        className="flex h-full w-full max-w-xl flex-col bg-surface shadow-2xl"
+        className="flex h-full w-full max-w-2xl flex-col bg-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-5">
@@ -93,40 +76,18 @@ export function SourceViewer({ citation, onClose }: { citation: Citation; onClos
             <X className="h-4 w-4" />
           </button>
         </header>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {error ? (
-            <div className="flex items-start gap-2 rounded-lg bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          ) : !chunks ? (
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Memuat dokumen…
-            </div>
-          ) : chunks.length === 0 ? (
-            <p className="text-sm text-muted">Tidak ada konten untuk ditampilkan.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {chunks.map((c, i) => {
-                const cited = isCited(citation.location, c.location)
-                return (
-                  <p
-                    key={i}
-                    ref={cited ? targetRef : undefined}
-                    className={
-                      cited
-                        ? 'scroll-mt-6 rounded-md bg-amber-200/60 px-2 py-1.5 text-sm leading-relaxed text-fg ring-1 ring-amber-400/60 dark:bg-amber-400/15'
-                        : 'px-2 py-1 text-sm leading-relaxed text-muted'
-                    }
-                  >
-                    {c.text}
-                  </p>
-                )
-              })}
-            </div>
-          )}
+        <div className="min-h-0 flex-1">
+          <ViewerErrorBoundary key={`${citation.document_id}-${JSON.stringify(citation.location)}`}>
+            <Suspense
+              fallback={
+                <div className="flex items-center gap-2 p-6 text-sm text-muted">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Memuat penampil…
+                </div>
+              }
+            >
+              <ViewerBody citation={citation} />
+            </Suspense>
+          </ViewerErrorBoundary>
         </div>
       </div>
     </div>

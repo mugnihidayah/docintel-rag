@@ -55,3 +55,70 @@ body {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* Source viewer: highlight for the cited passage / row / section */
+.source-highlight {
+  background-color: rgba(250, 204, 21, 0.35);
+  border-radius: 0.25rem;
+  scroll-margin: 1.5rem;
+}
+
+/* PDF.js text-layer search highlight (the text itself is transparent over the canvas) */
+.react-pdf__Page__textContent mark {
+  color: transparent;
+  background-color: rgba(250, 204, 21, 0.45);
+  border-radius: 2px;
+}
+.react-pdf__Page {
+  margin: 0 auto;
+}
+
+/* Rendered DOCX (mammoth) typography */
+.docx-content {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--fg);
+}
+.docx-content h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 1rem 0 0.5rem;
+}
+.docx-content h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 1rem 0 0.5rem;
+}
+.docx-content h3 {
+  font-weight: 600;
+  margin: 0.75rem 0 0.25rem;
+}
+.docx-content p {
+  margin: 0.5rem 0;
+}
+.docx-content ul,
+.docx-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+.docx-content li {
+  margin: 0.25rem 0;
+  list-style: disc;
+}
+.docx-content table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  width: 100%;
+}
+.docx-content td,
+.docx-content th {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+}
+.docx-content strong {
+  font-weight: 700;
+}
+.docx-content a {
+  color: var(--primary);
+  text-decoration: underline;
+}

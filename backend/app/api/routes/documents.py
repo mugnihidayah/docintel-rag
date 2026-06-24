@@ -3,9 +3,11 @@
 import hashlib
 import uuid
 from collections.abc import Sequence
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -94,6 +96,25 @@ async def get_document_chunks(
         document_id=document_id,
         filename=doc.filename,
         chunks=[ChunkOut.model_validate(c) for c in chunks],
+    )
+
+
+@router.get("/{document_id}/file")
+async def get_document_file(
+    document_id: str, db: AsyncSession = Depends(get_db)
+) -> FileResponse:
+    """Stream the original uploaded file (for native rendering in the UI)."""
+    doc = await repo.get(db, document_id)
+    if doc is None or not doc.storage_path:
+        raise NotFoundError(f"Document {document_id} not found")
+    path = Path(doc.storage_path)
+    if not path.exists():
+        raise NotFoundError("Source file not available")
+    return FileResponse(
+        path,
+        media_type=doc.mime_type or "application/octet-stream",
+        filename=doc.filename,
+        content_disposition_type="inline",
     )
 
 

@@ -73,4 +73,5 @@ def test_document_chunks(require_db: None, client: TestClient, monkeypatch) -> N
     assert isinstance(body["chunks"], list)  # empty here: indexing was mocked (no real nodes)
 
     assert client.get("/documents/nonexistent/chunks").status_code == 404
+    assert client.get("/documents/nonexistent/file").status_code == 404
     client.delete(f"/documents/{doc_id}")  # cleanup

@@ -49,7 +49,7 @@ Kandidat lalu di-**rerank** oleh **Cohere rerank-multilingual** (cross-encoder, 
 Retrieval: hit-rate@k + MRR (deterministik). Generation: RAGAS (judge gpt-oss-120b). Offline. _(TODO Fase 3)_
 
 ## 9. Observability
-Langfuse tracing (opsional). _(TODO Fase 6)_
+**Langfuse tracing (opsional).** Tiap query RAG di-trace sebagai satu observation (`rag_query`) dengan input (pertanyaan), output (jawaban), dan metadata (model, latency, jumlah chunk ter-retrieve, jumlah sitasi). **Gated**: aktif hanya bila `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` di-set; tanpa itu no-op tanpa overhead. Client di-init lazy + dibungkus try/except (gagal init → tracing mati, app tetap jalan); trace di-flush saat shutdown. Pakai Langfuse SDK v4 (OTEL-based): `start_as_current_observation` + `span.update`.
 
 ## 10. Security & Auth
 - **API key** (`X-API-Key`) di endpoint mutasi (`POST /documents`, `DELETE`): mati di dev (`API_KEY` kosong), aktif otomatis saat di-set (deploy). Query (baca) tetap terbuka.

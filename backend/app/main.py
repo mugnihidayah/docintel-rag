@@ -1,7 +1,8 @@
 """FastAPI application factory: logging, CORS, request-id, error handling, routers."""
 
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,14 +12,22 @@ from app.api.routes import documents, health, query
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import get_logger, request_id_var, setup_logging
+from app.observability.tracing import flush, get_tracer
 
 logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    logger.info("Tracing: %s", "langfuse" if get_tracer() else "disabled")
+    yield
+    flush()
 
 
 def create_app() -> FastAPI:
     setup_logging()
     settings = get_settings()
-    app = FastAPI(title="Document Intelligence API", version="0.1.0")
+    app = FastAPI(title="Document Intelligence API", version="0.1.0", lifespan=_lifespan)
 
     app.add_middleware(
         CORSMiddleware,

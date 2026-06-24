@@ -9,6 +9,7 @@ from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.llm.factory import make_llm
 from app.llm.prompts import GROUNDING_QA_TEMPLATE
+from app.observability.tracing import get_tracer
 from app.retrieval.retriever import make_reranker, make_retriever
 
 logger = get_logger(__name__)
@@ -53,7 +54,7 @@ def _build_citations(nodes: list[NodeWithScore], score_type: str) -> list[Citati
     return citations
 
 
-def answer_query(question: str, settings: Settings | None = None) -> QueryResult:
+def _run_query(question: str, settings: Settings | None = None) -> QueryResult:
     settings = settings or get_settings()
     started = time.perf_counter()
     model = f"{settings.llm_provider}:{settings.llm_model}"
@@ -79,3 +80,23 @@ def answer_query(question: str, settings: Settings | None = None) -> QueryResult
 
     elapsed = int((time.perf_counter() - started) * 1000)
     return QueryResult(answer, _build_citations(nodes, score_type), len(nodes), model, elapsed)
+
+
+def answer_query(question: str, settings: Settings | None = None) -> QueryResult:
+    """Run the query, recording a Langfuse trace when observability is enabled."""
+    tracer = get_tracer()
+    if tracer is None:
+        return _run_query(question, settings)
+    with tracer.start_as_current_observation(name="rag_query") as span:
+        result = _run_query(question, settings)
+        span.update(
+            input={"question": question},
+            output={"answer": result.answer},
+            metadata={
+                "model": result.model,
+                "latency_ms": result.latency_ms,
+                "retrieved_chunks": result.retrieved_chunks,
+                "citations": len(result.citations),
+            },
+        )
+        return result

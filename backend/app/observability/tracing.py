@@ -23,11 +23,22 @@ def get_tracer() -> Any | None:
             secret_key=settings.langfuse_secret_key,
             host=settings.langfuse_host or "https://cloud.langfuse.com",
         )
-        logger.info("Langfuse tracing enabled (%s)", settings.langfuse_host or "cloud")
-        return client
     except Exception as exc:  # pragma: no cover - external dependency / network
         logger.warning("Langfuse init failed, tracing disabled: %s", exc)
         return None
+
+    # Auto-instrument LlamaIndex (OpenInference/OTEL) so retrieval + LLM calls are
+    # captured and nested under our query span — the recommended approach for
+    # framework apps (vs. hand-rolled spans for every call).
+    try:
+        from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+
+        LlamaIndexInstrumentor().instrument()
+        logger.info("Langfuse tracing + LlamaIndex auto-instrumentation enabled")
+    except Exception as exc:  # pragma: no cover - optional dependency
+        logger.warning("LlamaIndex instrumentation unavailable: %s", exc)
+
+    return client
 
 
 def flush() -> None:

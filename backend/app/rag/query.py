@@ -87,7 +87,7 @@ def answer_query(question: str, settings: Settings | None = None) -> QueryResult
     tracer = get_tracer()
     if tracer is None:
         return _run_query(question, settings)
-    with tracer.start_as_current_observation(name="rag_query") as span:
+    with tracer.start_as_current_observation(as_type="span", name="rag_query") as span:
         result = _run_query(question, settings)
         span.update(
             input={"question": question},

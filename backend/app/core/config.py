@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -57,7 +58,10 @@ class Settings(BaseSettings):
     # langfuse
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
-    langfuse_host: str | None = None
+    # accept both LANGFUSE_HOST and Langfuse's own LANGFUSE_BASE_URL naming
+    langfuse_host: str | None = Field(
+        default=None, validation_alias=AliasChoices("langfuse_host", "langfuse_base_url")
+    )
 
     # Vision
     vision_enabled: bool = True

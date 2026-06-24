@@ -16,6 +16,7 @@ dependencies = [
     "llama-index-retrievers-bm25>=0.7.1",
     "llama-index-vector-stores-postgres>=0.8.1",
     "openai>=2.43.0",
+    "openinference-instrumentation-llama-index>=4.4.2",
     "openpyxl>=3.1.5",
     "pandas>=3.0.3",
     "pdfplumber>=0.11.10",

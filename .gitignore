@@ -19,3 +19,5 @@ backend/data/uploads/*
 .pytest_cache
 
 docs/
+
+.claude/

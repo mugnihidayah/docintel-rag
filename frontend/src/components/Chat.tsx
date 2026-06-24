@@ -1,26 +1,46 @@
 import { Send, Sparkles } from 'lucide-react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import type { ChatMessage, Citation } from '../lib/types'
+import type { ChatMessage, Citation, DocumentOut } from '../lib/types'
 import { MessageBubble } from './MessageBubble'
 
 interface Props {
   messages: ChatMessage[]
   asking: boolean
-  hasDocs: boolean
+  documents: DocumentOut[]
   onAsk: (question: string) => void
   onCite: (citation: Citation) => void
 }
 
-const SAMPLES = [
-  'Apa saja format dokumen yang wajib didukung?',
-  'Apa saja kriteria penilaiannya?',
-  'Ringkas poin utama dokumen ini',
+// Turn "UU-20-2023-ASN.pdf" -> "UU 20 2023 ASN" (drop extension, dashes/underscores -> spaces)
+function docTitle(filename: string): string {
+  const base = filename
+    .replace(/\.[^.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+  return base.length > 40 ? `${base.slice(0, 40).trimEnd()}…` : base
+}
+
+const TEMPLATES = [
+  (t: string) => `Ringkas poin utama ${t}`,
+  (t: string) => `Apa saja poin penting di ${t}?`,
+  (t: string) => `Jelaskan isi ${t} secara singkat`,
 ]
 
-export function Chat({ messages, asking, hasDocs, onAsk, onCite }: Props) {
+// Suggested questions derived from the uploaded documents' filenames.
+function sampleQuestions(documents: DocumentOut[]): string[] {
+  if (documents.length === 0) return ['Ringkas poin utama dokumen ini']
+  if (documents.length === 1) {
+    const title = docTitle(documents[0].filename)
+    return TEMPLATES.map((make) => make(title))
+  }
+  return documents.slice(0, 3).map((d, i) => TEMPLATES[i % TEMPLATES.length](docTitle(d.filename)))
+}
+
+export function Chat({ messages, asking, documents, onAsk, onCite }: Props) {
   const [input, setInput] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
+  const hasDocs = documents.length > 0
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -46,7 +66,7 @@ export function Chat({ messages, asking, hasDocs, onAsk, onCite }: Props) {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-6 py-6">
           {messages.length === 0 ? (
-            <EmptyState hasDocs={hasDocs} onPick={onAsk} />
+            <EmptyState hasDocs={hasDocs} samples={sampleQuestions(documents)} onPick={onAsk} />
           ) : (
             <div className="space-y-6">
               {messages.map((m) => (
@@ -87,7 +107,15 @@ export function Chat({ messages, asking, hasDocs, onAsk, onCite }: Props) {
   )
 }
 
-function EmptyState({ hasDocs, onPick }: { hasDocs: boolean; onPick: (q: string) => void }) {
+function EmptyState({
+  hasDocs,
+  samples,
+  onPick,
+}: {
+  hasDocs: boolean
+  samples: string[]
+  onPick: (q: string) => void
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary">
@@ -95,11 +123,11 @@ function EmptyState({ hasDocs, onPick }: { hasDocs: boolean; onPick: (q: string)
       </div>
       <h2 className="text-lg font-semibold">Tanya apa pun tentang dokumenmu</h2>
       <p className="mt-1 max-w-sm text-sm text-muted">
-        Jawaban dirangkai hanya dari isi dokumen, lengkap dengan sitasi sumbernya (file + lokasi).
+        Jawaban dirangkai hanya dari isi dokumen, lengkap dengan sitasi sumbernya.
       </p>
       {hasDocs && (
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          {SAMPLES.map((s) => (
+          {samples.map((s) => (
             <button
               key={s}
               onClick={() => onPick(s)}

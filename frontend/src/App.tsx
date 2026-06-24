@@ -91,14 +91,13 @@ export default function App() {
         <header className="flex h-14 items-center justify-between border-b border-border px-6">
           <div>
             <h1 className="text-sm font-semibold">Tanya Dokumen</h1>
-            <p className="text-xs text-muted">Jawaban grounded + sitasi yang bisa ditrace</p>
           </div>
           <ThemeToggle />
         </header>
         <Chat
           messages={messages}
           asking={asking}
-          hasDocs={documents.length > 0}
+          documents={documents}
           onAsk={handleAsk}
           onCite={setViewing}
         />

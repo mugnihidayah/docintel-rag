@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # Embedding
     embedding_provider: str = "jina"
     embedding_api_key: str | None = None
-    embedding_model: str = "jina-embeddings-v3"
+    embedding_model: str = "jina-embeddings-v5-text-small"
     embedding_base_url: str | None = None
     embedding_dim: int = 1024
 
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     cohere_api_key: str | None = None
     rerank_model: str = "rerank-multilingual-v3.0"
     retrieve_top_k: int = 30
-    rerank_top_n: int = 5
+    rerank_top_n: int = 10
     rerank_timeout_s: float = 5.0
 
     # Retrieval Mode

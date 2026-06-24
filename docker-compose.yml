@@ -17,5 +17,28 @@ services:
       timeout: 3s
       retries: 10
 
+  api:
+    build: ./backend
+    container_name: docintel-api
+    env_file:
+      - ./backend/.env
+    environment:
+      # override .env: inside the compose network the DB host is "db", not localhost
+      DATABASE_URL: postgresql+asyncpg://docintel:docintel@db:5432/docintel
+      ALLOWED_ORIGINS: http://localhost:5173
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    container_name: docintel-frontend
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
 volumes:
   pgdata:

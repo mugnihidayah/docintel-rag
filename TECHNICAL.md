@@ -58,8 +58,10 @@ Retrieval: hit-rate@k + MRR (deterministik). Generation: RAGAS (judge gpt-oss-12
 - **Error terpusat**: `AppError` → JSON `{error:{code,detail}}` + status tepat; 500 generik menyembunyikan detail internal. Tiap request punya `X-Request-ID` untuk korelasi log.
 - Auth + rate limit diimplementasi sebagai **dependency** (bukan middleware) agar error-nya lewat exception handler terpusat → 401/429 JSON konsisten, bukan 500 mentah.
 
-## 11. Rencana Deployment
-Backend → HF Spaces (Docker) · DB → Supabase · FE → Vercel. _(TODO Fase 8)_
+## 11. Deployment & CI
+**Lokal (full-stack):** `docker compose up --build` → `db` (pgvector) + `api` (image multi-stage uv, auto-migrate Alembic saat start) + `frontend` (build statis → nginx yang sekaligus proxy API). UI di `localhost:5173`, API di `localhost:8000`.
+**CI:** GitHub Actions (`.github/workflows/ci.yml`) — job *backend* (service Postgres+pgvector → `alembic upgrade head` → `make check`: lint + type + 67 test) & job *frontend* (`npm ci` + `npm run build`) tiap push/PR.
+**Target deploy (Fase 8):** backend → HF Spaces (Docker) · DB → Supabase (pgvector) · FE → Vercel. _(TODO)_
 
 ## 12. Trade-off & Future Work
 - **Node-level idempotency.** Dedup level-file sudah ada di API (`file_hash`), jadi upload file identik tak menambah node. Tapi `index_document` sendiri *append-only* (tiap pemanggilan langsung memakai `document_id` baru). Future: upsert / hapus-by-`document_id` sebelum re-index, agar re-index lewat jalur non-API juga aman.

@@ -11,7 +11,7 @@ def _settings(**kw: object) -> SimpleNamespace:
         "rerank_enabled": True,
         "cohere_api_key": "test-key",
         "rerank_model": "rerank-multilingual-v3.0",
-        "rerank_top_n": 5,
+        "rerank_top_n": 10,
     }
     base.update(kw)
     return SimpleNamespace(**base)

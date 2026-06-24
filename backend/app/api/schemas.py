@@ -40,3 +40,14 @@ class QueryOut(BaseModel):
     retrieved_chunks: int
     model: str
     latency_ms: int
+
+
+class ChunkOut(BaseModel):
+    text: str
+    location: dict[str, Any]
+
+
+class DocumentChunks(BaseModel):
+    document_id: str
+    filename: str
+    chunks: list[ChunkOut]

@@ -21,7 +21,9 @@ Deteksi format gabungan **ekstensi + magic bytes** (menolak file yang ekstensiny
 **Ketahanan.** Deteksi format menolak ekstensi yang menipu (magic bytes) & file kosong dengan pesan jelas; file korup → `ExtractionError` (status `failed`, batch lain tetap jalan); teks di-decode **UTF-8** dengan fallback (teks Indonesia utuh, tak pernah crash karena byte aneh).
 
 ## 3. Chunking
-_(structure-aware chunking — TODO Fase 2)_
+**Section-aware grouping.** Elemen hasil ekstraksi (heading, paragraf, list item, baris) dikelompokkan jadi *section* utuh — sebuah heading beserta konten di bawahnya — lalu tiap section jadi satu chunk. Pengelompokan berhenti di: **heading** (`element_type=heading` atau pola "N. Judul"), **batas struktur** (pindah halaman/slide/sheet), atau **batas ukuran** (~1200 char). Section yang masih panjang dipecah lagi oleh `SentenceSplitter` (512/64, structure-aware). Sitasi di-anchor ke elemen pertama section.
+
+**Kenapa:** chunk 1-elemen-per-node terlalu terfragmentasi — heading kepisah dari isinya, sehingga pertanyaan seperti *"apa kriteria penilaian?"* gagal menemukan daftar kriteria (tiap bullet, berdiri sendiri, match-nya lemah). Setelah grouping, "6. Penilaian" + seluruh kriterianya jadi satu chunk yang langsung rank #1 dengan jawaban lengkap (terukur: dari tidak masuk top-10 → citation teratas).
 
 ## 4. Embedding & LLM
 - **Embedding:** Jina v5 (`jina-embeddings-v5-text-small`, hosted, multilingual 90+ bahasa, 1024-dim), pluggable. Task `retrieval.passage`.
@@ -61,5 +63,5 @@ Backend → HF Spaces (Docker) · DB → Supabase · FE → Vercel. _(TODO Fase 
 
 ## 12. Trade-off & Future Work
 - **Node-level idempotency.** Dedup level-file sudah ada di API (`file_hash`), jadi upload file identik tak menambah node. Tapi `index_document` sendiri *append-only* (tiap pemanggilan langsung memakai `document_id` baru). Future: upsert / hapus-by-`document_id` sebelum re-index, agar re-index lewat jalur non-API juga aman.
-- **Granularitas chunk vs recall daftar.** Chunk 1-elemen sangat presisi untuk sitasi (lokasi tepat), tapi memecah satu "daftar logis" (mis. PDF/DOCX/PPTX masing-masing jadi node terpisah) → pertanyaan "sebutkan semua X" butuh `RERANK_TOP_N` lebih besar agar semua sibling ikut. Future: gabung heading+anak yang berurutan jadi chunk komposit, atau *small-to-big retrieval*.
+- **Chunking section-aware (sudah diterapkan).** Heading digabung dengan isinya jadi satu chunk → pertanyaan tipe daftar/section terjawab lengkap (lihat §3). Sisa: section sangat panjang yang dipecah `SentenceSplitter` kehilangan konteks heading di sub-chunk lanjutan (mitigasi ke depan: prefix heading / *small-to-big retrieval*); list bernomor (mis. "1. PDF (wajib)") masih terpisah dari heading-nya karena polanya identik dengan heading section.
 - **Lainnya:** versioning dokumen, cache embedding per-chunk, gambar di sel tabel/header-footer, query-vs-passage task terpisah untuk embedding.

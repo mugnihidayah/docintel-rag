@@ -9,7 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.api.schemas import DocumentOut
+from app.api.schemas import ChunkOut, DocumentChunks, DocumentOut
 from app.api.security import rate_limit, require_api_key
 from app.core.config import get_settings
 from app.core.errors import ExtractionError, NotFoundError, PayloadTooLargeError
@@ -80,6 +80,21 @@ async def get_document(document_id: str, db: AsyncSession = Depends(get_db)) -> 
     if doc is None:
         raise NotFoundError(f"Document {document_id} not found")
     return doc
+
+
+@router.get("/{document_id}/chunks", response_model=DocumentChunks)
+async def get_document_chunks(
+    document_id: str, db: AsyncSession = Depends(get_db)
+) -> DocumentChunks:
+    doc = await repo.get(db, document_id)
+    if doc is None:
+        raise NotFoundError(f"Document {document_id} not found")
+    chunks = await repo.get_chunks(db, document_id)
+    return DocumentChunks(
+        document_id=document_id,
+        filename=doc.filename,
+        chunks=[ChunkOut.model_validate(c) for c in chunks],
+    )
 
 
 @router.delete("/{document_id}", status_code=204, dependencies=[Depends(require_api_key)])

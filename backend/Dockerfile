@@ -21,5 +21,5 @@ RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
-# Apply DB migrations, then start the API.
-CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Apply DB migrations, then start the API. PORT is injected by some hosts (e.g. HF Spaces).
+CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

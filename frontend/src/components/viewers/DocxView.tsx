@@ -1,6 +1,7 @@
 import { Loader2 } from 'lucide-react'
 import { convertToHtml } from 'mammoth/mammoth.browser'
 import { useEffect, useRef, useState } from 'react'
+import { apiUrl } from '../../lib/api'
 import type { Citation } from '../../lib/types'
 import { useCitedText } from '../../lib/useCitedText'
 
@@ -32,7 +33,7 @@ export function DocxView({ citation }: { citation: Citation }) {
 
   useEffect(() => {
     let active = true
-    fetch(`/documents/${docId}/file`)
+    fetch(apiUrl(`/documents/${docId}/file`))
       .then((r) => r.arrayBuffer())
       .then((buf) => convertToHtml({ arrayBuffer: buf }))
       .then((res) => {

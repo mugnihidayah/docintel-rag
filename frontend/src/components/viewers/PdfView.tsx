@@ -3,6 +3,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/TextLayer.css'
+import { apiUrl } from '../../lib/api'
 import type { Citation } from '../../lib/types'
 import { useCitedText } from '../../lib/useCitedText'
 
@@ -54,7 +55,7 @@ export function PdfView({ citation }: { citation: Citation }) {
           <p className="text-sm text-red-500">{error}</p>
         ) : (
           <Document
-            file={`/documents/${docId}/file`}
+            file={apiUrl(`/documents/${docId}/file`)}
             onLoadSuccess={onLoad}
             onLoadError={(e) => setError(e.message)}
             loading={<Loading />}

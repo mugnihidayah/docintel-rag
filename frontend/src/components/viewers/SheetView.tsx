@@ -1,6 +1,7 @@
 import { Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
+import { apiUrl } from '../../lib/api'
 import type { Citation } from '../../lib/types'
 
 interface SheetData {
@@ -17,7 +18,7 @@ export function SheetView({ citation }: { citation: Citation }) {
 
   useEffect(() => {
     let active = true
-    fetch(`/documents/${docId}/file`)
+    fetch(apiUrl(`/documents/${docId}/file`))
       .then((r) => r.arrayBuffer())
       .then((buf) => {
         const wb = XLSX.read(buf, { type: 'array' })

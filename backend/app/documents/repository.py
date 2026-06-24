@@ -52,17 +52,19 @@ async def get(db: AsyncSession, document_id: str) -> Document | None:
 
 
 async def delete(db: AsyncSession, doc: Document) -> None:
-    # Remove the document's vector nodes first, then the relational row.
-    await db.execute(
-        text("DELETE FROM data_docintel WHERE metadata_->>'source_id' = :doc_id"),
-        {"doc_id": doc.id},
-    )
+    if await db.scalar(text("SELECT to_regclass('data_docintel')")) is not None:
+        await db.execute(
+            text("DELETE FROM data_docintel WHERE metadata_->>'source_id' = :doc_id"),
+            {"doc_id": doc.id},
+        )
     await db.delete(doc)
     await db.commit()
 
 
 async def get_chunks(db: AsyncSession, document_id: str) -> list[dict[str, Any]]:
     """Return the document's stored nodes (text + source location), in document order."""
+    if await db.scalar(text("SELECT to_regclass('data_docintel')")) is None:
+        return []
     result = await db.execute(
         text(
             "SELECT text, metadata_ FROM data_docintel "

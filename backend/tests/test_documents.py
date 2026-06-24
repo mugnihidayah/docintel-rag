@@ -56,3 +56,21 @@ def test_list_get_delete(require_db: None, client: TestClient, monkeypatch) -> N
 
     assert client.delete(f"/documents/{doc_id}").status_code == 204
     assert client.get(f"/documents/{doc_id}").status_code == 404
+
+
+def test_document_chunks(require_db: None, client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(docs, "index_document", lambda *a, **k: 1)
+    monkeypatch.setattr(docs, "save_file", lambda *a, **k: "/tmp/fake")
+
+    files = {"file": ("chunks.txt", b"chunk endpoint unique content 7777", "text/plain")}
+    doc_id = client.post("/documents", files=files).json()["id"]
+
+    res = client.get(f"/documents/{doc_id}/chunks")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["document_id"] == doc_id
+    assert body["filename"] == "chunks.txt"
+    assert isinstance(body["chunks"], list)  # empty here: indexing was mocked (no real nodes)
+
+    assert client.get("/documents/nonexistent/chunks").status_code == 404
+    client.delete(f"/documents/{doc_id}")  # cleanup

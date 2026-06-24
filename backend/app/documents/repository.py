@@ -1,11 +1,15 @@
 """Async CRUD helpers for the documents table."""
 
+import json
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Document, DocumentStatus
+
+_LOCATION_KEYS = ("page", "slide", "sheet", "section", "block_index", "row_start", "row_end")
 
 
 async def get_by_hash(db: AsyncSession, file_hash: str) -> Document | None:
@@ -50,8 +54,27 @@ async def get(db: AsyncSession, document_id: str) -> Document | None:
 async def delete(db: AsyncSession, doc: Document) -> None:
     # Remove the document's vector nodes first, then the relational row.
     await db.execute(
-        text("DELETE FROM data_docintel WHERE metadata_->>'document_id' = :doc_id"),
+        text("DELETE FROM data_docintel WHERE metadata_->>'source_id' = :doc_id"),
         {"doc_id": doc.id},
     )
     await db.delete(doc)
     await db.commit()
+
+
+async def get_chunks(db: AsyncSession, document_id: str) -> list[dict[str, Any]]:
+    """Return the document's stored nodes (text + source location), in document order."""
+    result = await db.execute(
+        text(
+            "SELECT text, metadata_ FROM data_docintel "
+            "WHERE metadata_->>'source_id' = :id ORDER BY id"
+        ),
+        {"id": document_id},
+    )
+    chunks: list[dict[str, Any]] = []
+    for row in result:
+        meta = row.metadata_
+        if isinstance(meta, str):
+            meta = json.loads(meta)
+        location = {k: meta[k] for k in _LOCATION_KEYS if k in meta}
+        chunks.append({"text": row.text, "location": location})
+    return chunks

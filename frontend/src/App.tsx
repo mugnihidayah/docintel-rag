@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react'
 import { useCallback, useEffect, useState } from 'react'
 import { Chat } from './components/Chat'
 import { Sidebar } from './components/Sidebar'
@@ -103,6 +104,7 @@ export default function App() {
         />
       </main>
       {viewing && <SourceViewer citation={viewing} onClose={() => setViewing(null)} />}
+      <Analytics />
     </div>
   )
 }
